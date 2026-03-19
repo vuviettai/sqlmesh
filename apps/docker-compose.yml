@@ -1,0 +1,64 @@
+services:
+  # ---------------------------------------------------------------------------
+  # BYT-IOC SQLMesh service – transforms HIV/AIDS data from staging → BI DB.
+  # ---------------------------------------------------------------------------
+  byt-ioc:
+    build:
+      context: ..   # SQLMesh repo root (pyproject.toml, sqlmesh/, web/…)
+      dockerfile: apps/Dockerfile
+    image: sqlmesh:latest
+    container_name: sqlmesh_byt_ioc
+    environment:
+      PROJECT_PATH: /app/project
+      UI_MODE: ${UI_MODE:-ide}
+       # Staging database (source – populated by Airbyte)
+      STAGING_DB_HOST: host.docker.internal
+      STAGING_DB_PORT: "5434"
+      STAGING_DB_NAME: ${STAGING_DB_NAME:-staging_db}
+      STAGING_DB_USER: ${STAGING_DB_USER:-pguser}
+      STAGING_DB_PASSWORD: ${STAGING_DB_PASSWORD:-pgpassword}
+      AIRBYTE_RAW_SCHEMA: ${AIRBYTE_RAW_SCHEMA:-airbyte_internal}
+      # BI database (destination for transformed models + SQLMesh state)
+      BI_DB_HOST: host.docker.internal
+      BI_DB_PORT: "5435"
+      BI_DB_NAME: ${BI_DB_NAME:-bi_db}
+      BI_DB_USER: ${BI_DB_USER:-pguser}
+      BI_DB_PASSWORD: ${BI_DB_PASSWORD:-pgpassword}
+      # SQLMesh state database (snapshots, environments, intervals...)
+      SQLMESH_STATE_DB_HOST: ${SQLMESH_STATE_DB_HOST:-sqlmesh_state_postgres}
+      SQLMESH_STATE_DB_PORT: "${SQLMESH_STATE_DB_PORT:-5432}"
+      SQLMESH_STATE_DB_NAME: ${SQLMESH_STATE_DB_NAME:-sqlmesh_state_db}
+      SQLMESH_STATE_DB_USER: ${SQLMESH_STATE_DB_USER:-sqlmesh}
+      SQLMESH_STATE_DB_PASSWORD: ${SQLMESH_STATE_DB_PASSWORD:-sqlmesh}
+    volumes:
+      - ./byt-ioc:/app/project
+    ports:
+      - "${BYT_IOC_PORT:-8088}:8000"
+    depends_on:
+      sqlmesh_state_postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Dedicated SQLMesh state database (separate from BI data warehouse).
+  # ---------------------------------------------------------------------------
+  sqlmesh_state_postgres:
+    image: postgres:16-alpine
+    container_name: sqlmesh_state_postgres
+    environment:
+      POSTGRES_DB: ${SQLMESH_STATE_DB_NAME:-sqlmesh_state_db}
+      POSTGRES_USER: ${SQLMESH_STATE_DB_USER:-sqlmesh}
+      POSTGRES_PASSWORD: ${SQLMESH_STATE_DB_PASSWORD:-sqlmesh}
+    volumes:
+      - sqlmesh_state_postgres_data:/var/lib/postgresql/data
+      - ./sqlmesh-state-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${SQLMESH_STATE_DB_PORT_EXTERNAL:-5436}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SQLMESH_STATE_DB_USER:-sqlmesh} -d ${SQLMESH_STATE_DB_NAME:-sqlmesh_state_db}"]
+      interval: 10s
+      retries: 5
+
+volumes:
+  sqlmesh_state_postgres_data:
+

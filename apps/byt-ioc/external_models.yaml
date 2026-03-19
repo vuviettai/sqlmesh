@@ -1,0 +1,26 @@
+# =============================================================================
+# External models – source tables in the STAGING PostgreSQL database.
+#
+# These are populated by the Airbyte "HivAids" connector using Destinations V2
+# (raw tables with _airbyte_data JSONB column).
+#
+# Because staging is a separate Postgres instance these tables are NOT
+# queryable via SQL from the BI gateway. They are documented here for DAG
+# lineage and column-level documentation only. The Python model
+# `public.stg_hiv_aids` reads from staging_db.public.HivAids using a direct
+# psycopg2 connection configured through the project's .env file.
+# =============================================================================
+
+- name: staging.hiv_aids
+  description: >
+    Raw HIV/AIDS records landed by Airbyte from the BYT-IOC API
+    (http://api-egress/hivapi/v1/integrate/get-data).
+    Each row is one API record; the full payload is stored in _airbyte_data (JSONB).
+    The cursor field used for incremental sync is thoiGianCapNhat.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamp
+    _airbyte_loaded_at: timestamp
+    _airbyte_generation_id: bigint
+    _airbyte_data: json

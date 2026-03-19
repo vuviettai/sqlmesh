@@ -1,0 +1,48 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.eggs
+dist/
+build/
+.venv
+venv
+env
+
+# Node / frontend artifacts (built in Stage 1 from source)
+node_modules
+web/client/node_modules
+web/client/dist
+
+# Tests & dev tooling
+tests/
+benchmarks/
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.pre-commit-config.yaml
+.readthedocs.yaml
+
+# Docs
+docs/
+docusaurus/
+pdoc/
+posts/
+mkdocs.yml
+
+# IDE
+.vscode
+.idea
+*.code-workspace
+
+# Misc
+*.md
+*.log
+.DS_Store
