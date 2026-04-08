@@ -10,13 +10,13 @@ from sqlmesh.utils.errors import SQLMeshError
 
 
 @model(
-    "sqlmesh_work.sync_public_tbl_dim_plhiv",
+    "sqlmesh_work.sync_public_hiv_dim_nguoi_nhiem_hiv",
     kind="FULL",
     owner="data_team",
     cron="@daily",
     depends_on=[
-        "sqlmesh_work.src_tbl_dim_plhiv",
-        "sqlmesh_work.sync_public_tbl_don_vi_hanh_chinh",
+        "sqlmesh_work.src_hiv_dim_nguoi_nhiem_hiv",
+        "sqlmesh_work.sync_public_shared_don_vi_hanh_chinh",
     ],
     columns={
         "target_table": "text",
@@ -33,15 +33,15 @@ def execute(
 ) -> pd.DataFrame:
     del start, end, kwargs
 
-    source_table = context.resolve_table("sqlmesh_work.src_tbl_dim_plhiv")
+    source_table = context.resolve_table("sqlmesh_work.src_hiv_dim_nguoi_nhiem_hiv")
     source_rows = int(context.fetchdf(f"SELECT COUNT(*) AS cnt FROM {source_table}").iloc[0]["cnt"])
     parent_rows = int(
-        context.fetchdf("SELECT COUNT(*) AS cnt FROM public.tbl_don_vi_hanh_chinh").iloc[0]["cnt"]
+        context.fetchdf("SELECT COUNT(*) AS cnt FROM public.don_vi_hanh_chinh").iloc[0]["cnt"]
     )
 
     if source_rows > 0 and parent_rows == 0:
         raise SQLMeshError(
-            "public.tbl_don_vi_hanh_chinh is empty, so public.tbl_dim_plhiv cannot be loaded. "
+            "public.don_vi_hanh_chinh is empty, so public.hiv_dim_nguoi_nhiem_hiv cannot be loaded. "
             "Load the administrative dimension first or remove the FK dependency."
         )
 
@@ -50,7 +50,7 @@ def execute(
             f"""
                         SELECT COUNT(*) AS cnt
             FROM {source_table} AS s
-            JOIN public.tbl_don_vi_hanh_chinh dvhc
+            JOIN public.don_vi_hanh_chinh dvhc
                             ON dvhc.ma_tinh_thanh = LPAD(REGEXP_REPLACE(s.ma_tinh, '[^0-9]', '', 'g'), 2, '0')
             """
         ).iloc[0]["cnt"]
@@ -58,14 +58,14 @@ def execute(
 
     if source_rows > 0 and matched_rows == 0:
         raise SQLMeshError(
-            "No rows from sqlmesh_work.src_tbl_dim_plhiv match public.tbl_don_vi_hanh_chinh.ma_tinh_thanh. "
+            "No rows from sqlmesh_work.src_hiv_dim_nguoi_nhiem_hiv match public.don_vi_hanh_chinh.ma_tinh_thanh. "
             "Check province code mapping before loading BI tables."
         )
 
     context.engine_adapter.execute(
         f"""
-        INSERT INTO public.tbl_dim_plhiv (
-            ma_plhiv,
+        INSERT INTO public.hiv_dim_nguoi_nhiem_hiv (
+            ma_nguoi_nhiem_hiv,
             gioi_tinh,
             nhom_tuoi,
             ma_tinh,
@@ -78,7 +78,7 @@ def execute(
             ngay_cap_nhat
         )
         SELECT
-            s.ma_plhiv,
+            s.ma_nguoi_nhiem_hiv,
             s.gioi_tinh,
             s.nhom_tuoi,
             LPAD(REGEXP_REPLACE(s.ma_tinh, '[^0-9]', '', 'g'), 2, '0') AS ma_tinh,
@@ -90,9 +90,9 @@ def execute(
             s.kenh_phat_hien,
             s.ngay_cap_nhat
         FROM {source_table} AS s
-        JOIN public.tbl_don_vi_hanh_chinh dvhc
+        JOIN public.don_vi_hanh_chinh dvhc
                     ON dvhc.ma_tinh_thanh = LPAD(REGEXP_REPLACE(s.ma_tinh, '[^0-9]', '', 'g'), 2, '0')
-        ON CONFLICT (ma_plhiv) DO UPDATE SET
+        ON CONFLICT (ma_nguoi_nhiem_hiv) DO UPDATE SET
             gioi_tinh = EXCLUDED.gioi_tinh,
             nhom_tuoi = EXCLUDED.nhom_tuoi,
             ma_tinh = EXCLUDED.ma_tinh,
@@ -107,5 +107,5 @@ def execute(
     )
 
     return pd.DataFrame(
-        [{"target_table": "public.tbl_dim_plhiv", "rows_loaded": matched_rows, "loaded_at": execution_time}]
+        [{"target_table": "public.hiv_dim_nguoi_nhiem_hiv", "rows_loaded": matched_rows, "loaded_at": execution_time}]
     )

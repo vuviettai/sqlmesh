@@ -53,7 +53,7 @@ services:
       - sqlmesh_state_postgres_data:/var/lib/postgresql/data
       - ./sqlmesh-state-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "${SQLMESH_STATE_DB_PORT_EXTERNAL:-5436}:5432"
+      - "${SQLMESH_STATE_DB_PORT_EXTERNAL:-5446}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${SQLMESH_STATE_DB_USER:-sqlmesh} -d ${SQLMESH_STATE_DB_NAME:-sqlmesh_state_db}"]
       interval: 10s

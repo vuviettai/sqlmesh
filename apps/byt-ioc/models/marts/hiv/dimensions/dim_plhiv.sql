@@ -1,6 +1,6 @@
 /* =============================================================================
-  sqlmesh_work.src_tbl_dim_plhiv
-   =================
+  sqlmesh_work.src_hiv_dim_nguoi_nhiem_hiv
+   =======================================
    Dimension: người nhiễm HIV (PLHIV).
    Grain: MA_PLHIV – một dòng per bệnh nhân (bản cập nhật mới nhất).
 
@@ -15,13 +15,13 @@
    - nguon_du_lieu     → KENH_PHAT_HIEN
 ============================================================================= */
 MODEL (
-  name        sqlmesh_work.src_tbl_dim_plhiv,
+  name        sqlmesh_work.src_hiv_dim_nguoi_nhiem_hiv,
   kind        INCREMENTAL_BY_UNIQUE_KEY (
-    unique_key  ma_plhiv
+    unique_key  ma_nguoi_nhiem_hiv
   ),
   owner       data_team,
   cron        '@daily',
-  grain       ma_plhiv,
+  grain       ma_nguoi_nhiem_hiv,
   tags        (dimension, hiv, plhiv),
   description 'HIV patient (PLHIV) dimension – latest demographics and status per patient.'
 );
@@ -36,22 +36,16 @@ WITH latest AS (
   FROM sqlmesh_work.stg_hiv_aids
   WHERE so_dinh_danh IS NOT NULL
     AND ngay_kd_hiv   IS NOT NULL
-    -- Bắt buộc có mã tỉnh để đảm bảo FK về TBL_DON_VI_HANH_CHINH
     AND COALESCE(ma_tinh_thuong_tru, ma_tinh_hien_tai) IS NOT NULL
 )
 
 SELECT
-  -- Khóa chính
-  so_dinh_danh::VARCHAR(20)                                          AS ma_plhiv,
-
-  -- Giới tính
+  so_dinh_danh::VARCHAR(20)                                          AS ma_nguoi_nhiem_hiv,
   CASE gioi_tinh
     WHEN '1' THEN 'NAM'
     WHEN '2' THEN 'NU'
     ELSE          'KHONG_XAC_DINH'
   END::VARCHAR(50)                                                   AS gioi_tinh,
-
-  -- Nhóm tuổi tại thời điểm chẩn đoán
   CASE
     WHEN ngay_sinh IS NULL
       THEN 'KHONG_XAC_DINH'
@@ -67,22 +61,16 @@ SELECT
       THEN '45-54'
     ELSE '>=55'
   END::VARCHAR(50)                                                   AS nhom_tuoi,
-
-  -- Tỉnh (ưu tiên thường trú, fallback hiện tại)
   COALESCE(ma_tinh_thuong_tru, ma_tinh_hien_tai)::VARCHAR(10)       AS ma_tinh,
-
-  -- Nhóm nguy cơ (từ mã nhóm đối tượng BYT-IOC)
   CASE nhom_doi_tuong
-    WHEN '1' THEN 'MSM'               -- Nam quan hệ tình dục với nam
-    WHEN '2' THEN 'TCMT'              -- Tiêm chích ma túy
-    WHEN '3' THEN 'PNMD'              -- Phụ nữ mại dâm
-    WHEN '4' THEN 'BAN_TINH_PLHIV'   -- Bạn tình PLHIV
-    WHEN '5' THEN 'ME_SANG_CON'       -- Mẹ sang con
-    WHEN '6' THEN 'CON_ME_NHIEM'      -- Con của mẹ nhiễm HIV
+    WHEN '1' THEN 'MSM'
+    WHEN '2' THEN 'TCMT'
+    WHEN '3' THEN 'PNMD'
+    WHEN '4' THEN 'BAN_TINH_PLHIV'
+    WHEN '5' THEN 'ME_SANG_CON'
+    WHEN '6' THEN 'CON_ME_NHIEM'
     ELSE          'KHAC'
   END::VARCHAR(50)                                                   AS nhom_nguy_co,
-
-  -- Đường lây truyền (suy luận từ nhóm nguy cơ)
   CASE nhom_doi_tuong
     WHEN '1' THEN 'TINH_DUC_DONG_GIOI'
     WHEN '2' THEN 'TIEM_CHICH_MA_TUY'
@@ -92,21 +80,13 @@ SELECT
     WHEN '6' THEN 'DOC_TRUYEN_TU_ME'
     ELSE          'KHONG_XAC_DINH'
   END::VARCHAR(50)                                                   AS duong_lay,
-
   ngay_kd_hiv::DATE                                                  AS ngay_chan_doan,
-
-  -- Trạng thái sống: mã tình trạng '9' = tử vong
   CASE
     WHEN ma_tinh_trang_dk LIKE '%9%' THEN 'TU_VONG'
     ELSE                                   'DANG_SONG'
   END::VARCHAR(50)                                                   AS trang_thai,
-
-  -- Ngày tử vong: không lưu trong BYT-IOC, để NULL
   NULL::DATE                                                         AS ngay_tu_vong,
-
   COALESCE(nguon_du_lieu, 'KHONG_XAC_DINH')::VARCHAR(50)            AS kenh_phat_hien,
-
   thoi_gian_cap_nhat::DATE                                           AS ngay_cap_nhat
-
 FROM latest
 WHERE rn = 1

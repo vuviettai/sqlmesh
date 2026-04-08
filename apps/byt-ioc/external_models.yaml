@@ -24,3 +24,145 @@
     _airbyte_loaded_at: timestamp
     _airbyte_generation_id: bigint
     _airbyte_data: json
+
+- name: staging.beneficiaries
+  description: >
+    Raw BTXH beneficiary records landed by Airbyte from the Beneficiaries
+    source table. The table contains one row per beneficiary snapshot plus
+    nested JSONB structures for residence, paper identity, and center profile
+    history.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamptz
+    _airbyte_meta: json
+    _airbyte_generation_id: bigint
+    id: text
+    active: boolean
+    gender: bigint
+    suKien: text
+    fullName: text
+    phienBan: bigint
+    createdAt: bigint
+    ethnicity: text
+    residence: json
+    updatedAt: bigint
+    attachments: json
+    createdAtmm: text
+    dateOfBirth: text
+    nationality: text
+    updatedAtmm: text
+    paperIdentity: json
+    placeOfOrigin: text
+    centerProfiles: json
+
+- name: staging.care_activities
+  description: >
+    Raw BTXH care activity records landed by Airbyte from the CareActivities
+    source table. Each row carries one care activity plus nested person and
+    care-plan JSON structures.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamptz
+    _airbyte_meta: json
+    _airbyte_generation_id: bigint
+    id: text
+    person: json
+    suKien: text
+    carePlan: json
+    phienBan: bigint
+    createdAtmm: text
+    updatedAtmm: text
+
+- name: staging.facilities
+  description: >
+    Raw BTXH facility records landed by Airbyte from the Facilities source
+    table. Each row represents one facility snapshot with organization,
+    capacity, management, and director metadata.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamptz
+    _airbyte_meta: json
+    _airbyte_generation_id: bigint
+    id: text
+    facilityCode: text
+    facilityName: text
+    suKien: text
+    active: boolean
+    phienBan: bigint
+    createdAt: bigint
+    updatedAt: bigint
+    createdAtmm: text
+    updatedAtmm: text
+    centerTypeCode: text
+    centerTypeName: text
+    facilityForm: text
+    facilityFormName: text
+    managementUnitCode: text
+    managementUnitName: text
+    contactAddress: text
+    provinceCode: text
+    wardCode: text
+    serviceTargetCodes: json
+
+- name: staging.social_workers
+  description: >
+    Raw BTXH social worker records landed by Airbyte from the SocialWorkers
+    source table. Each row contains one worker snapshot plus nested residence,
+    work history, education history, and identity-document structures.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamptz
+    _airbyte_meta: json
+    _airbyte_generation_id: bigint
+    id: text
+    email: text
+    gender: bigint
+    suKien: text
+    fullName: text
+    phienBan: bigint
+    createdAt: bigint
+    updatedAt: bigint
+    createdAtmm: text
+    updatedAtmm: text
+    dateOfBirth: text
+    ethnicityId: text
+    ethnicityCode: text
+    ethnicityName: text
+    nationalityId: text
+    nationalityCode: text
+    nationalityName: text
+    phoneNumber: text
+    organizationId: text
+    residenceInfo: json
+    workHistories: json
+    educationHistories: json
+    practiceCertifications: json
+    personalIdentityDocument: json
+
+- name: staging.work_histories
+  description: >
+    Raw BTXH work history records landed by Airbyte from the WorkHistories
+    source table. Each row carries one work history item plus a nested social
+    worker snapshot.
+  dialect: postgres
+  columns:
+    _airbyte_raw_id: text
+    _airbyte_extracted_at: timestamptz
+    _airbyte_meta: json
+    _airbyte_generation_id: bigint
+    id: text
+    suKien: text
+    phienBan: bigint
+    createdAt: bigint
+    updatedAt: bigint
+    createdAtmm: text
+    updatedAtmm: text
+    workHistory: json
+    socialWorker: json
+
+
+

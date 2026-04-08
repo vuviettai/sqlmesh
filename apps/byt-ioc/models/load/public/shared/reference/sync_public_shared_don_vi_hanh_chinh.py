@@ -9,7 +9,7 @@ from sqlmesh import ExecutionContext, model
 
 
 @model(
-    "sqlmesh_work.sync_public_tbl_don_vi_hanh_chinh",
+    "sqlmesh_work.sync_public_shared_don_vi_hanh_chinh",
     kind="FULL",
     owner="data_team",
     cron="@daily",
@@ -31,10 +31,9 @@ def execute(
 
     stg_table = context.resolve_table("sqlmesh_work.stg_hiv_aids")
 
-    # Keep names up to date for existing province codes.
     context.engine_adapter.execute(
         f"""
-        UPDATE public.tbl_don_vi_hanh_chinh d
+        UPDATE public.don_vi_hanh_chinh d
         SET ten_tinh = src.ten_tinh,
             updated_at = CURRENT_TIMESTAMP
         FROM (
@@ -56,7 +55,6 @@ def execute(
         """
     )
 
-    # Insert missing province codes with placeholder district/ward values.
     context.engine_adapter.execute(
         f"""
         WITH src AS (
@@ -76,14 +74,14 @@ def execute(
         missing AS (
             SELECT s.*
             FROM src s
-            LEFT JOIN public.tbl_don_vi_hanh_chinh d
+            LEFT JOIN public.don_vi_hanh_chinh d
               ON d.ma_tinh_thanh = s.ma_tinh
             WHERE d.ma_tinh_thanh IS NULL
         ),
         base AS (
-            SELECT COALESCE(MAX(id), 0) AS max_id FROM public.tbl_don_vi_hanh_chinh
+            SELECT COALESCE(MAX(id), 0) AS max_id FROM public.don_vi_hanh_chinh
         )
-        INSERT INTO public.tbl_don_vi_hanh_chinh (
+        INSERT INTO public.don_vi_hanh_chinh (
             id,
             ma_tinh_thanh,
             ten_tinh,
@@ -111,7 +109,7 @@ def execute(
         """
     )
 
-    rows_loaded = int(context.fetchdf("SELECT COUNT(*) AS cnt FROM public.tbl_don_vi_hanh_chinh").iloc[0]["cnt"])
+    rows_loaded = int(context.fetchdf("SELECT COUNT(*) AS cnt FROM public.don_vi_hanh_chinh").iloc[0]["cnt"])
     return pd.DataFrame(
-        [{"target_table": "public.tbl_don_vi_hanh_chinh", "rows_loaded": rows_loaded, "loaded_at": execution_time}]
+        [{"target_table": "public.don_vi_hanh_chinh", "rows_loaded": rows_loaded, "loaded_at": execution_time}]
     )

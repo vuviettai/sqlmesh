@@ -11,9 +11,9 @@ from psycopg2 import sql
 from sqlmesh import ExecutionContext, model
 from sqlmesh.core.model.kind import ModelKindName
 
-from ._helpers.env import load_dotenv_if_present
-from ._helpers.db import get_connection
-from ._helpers.parsers import flatten
+from .._helpers.db import get_connection
+from .._helpers.env import load_dotenv_if_present
+from .hiv_helper import flatten_hiv_aids
 
 
 MODEL_COLUMNS = {
@@ -67,10 +67,35 @@ MODEL_COLUMNS = {
     "nhom_doi_tuong": "text",
 }
 
+DATE_COLUMNS = (
+    "ngay_sinh",
+    "ngay_kd_hiv",
+    "ngay_bd_dt_arv",
+    "ngay_chuyen_phac_do",
+    "ngay_bd_xu_tri",
+    "ngay_kt_xu_tri",
+    "ngay_bd_dieu_tri_lao",
+    "ngay_kt_dieu_tri_lao",
+    "ngay_xn_tlvr",
+    "ngay_kq_xn_tlvr",
+)
 
-# ---------------------------------------------------------------------------
-# SQLMesh model
-# ---------------------------------------------------------------------------
+FETCH_BATCH_SIZE = 10_000
+
+
+def _normalize_dataframe(records: list[dict[str, t.Any]]) -> pd.DataFrame:
+    df = pd.DataFrame.from_records(records)
+    df = df.reindex(columns=MODEL_COLUMNS.keys())
+    df["_airbyte_extracted_at"] = pd.to_datetime(df["_airbyte_extracted_at"], errors="coerce")
+    df["thoi_gian_cap_nhat"] = pd.to_datetime(df["thoi_gian_cap_nhat"], errors="coerce")
+
+    for col in DATE_COLUMNS:
+        df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
+
+    df["_airbyte_generation_id"] = pd.to_numeric(df["_airbyte_generation_id"], errors="coerce").astype("Int64")
+    df["so_ngay_cap_thuoc_arv"] = pd.to_numeric(df["so_ngay_cap_thuoc_arv"], errors="coerce")
+    return df.astype(object).where(pd.notna(df), None)
+
 
 @model(
     "sqlmesh_work.stg_hiv_aids",
@@ -78,11 +103,7 @@ MODEL_COLUMNS = {
         "Cleaned and flattened HIV/AIDS records from the staging PostgreSQL "
         "table public.HivAids into the BI PostgreSQL database."
     ),
-    kind=dict(
-        name=ModelKindName.INCREMENTAL_BY_TIME_RANGE,
-        time_column="thoi_gian_cap_nhat",
-        batch_size=90,
-    ),
+    kind=dict(name=ModelKindName.INCREMENTAL_BY_TIME_RANGE, time_column="thoi_gian_cap_nhat", batch_size=90),
     start="2020-01-01",
     cron="@daily",
     owner="data_team",
@@ -96,7 +117,7 @@ def execute(
     execution_time: datetime,
     **kwargs: t.Any,
 ) -> t.Iterator[pd.DataFrame]:
-    del execution_time, kwargs
+    del context, execution_time, kwargs
 
     load_dotenv_if_present()
     conn = get_connection()
@@ -144,56 +165,16 @@ def execute(
             WHERE NULLIF(\"thoiGianCapNhat\", '')::timestamp >= %(start)s
               AND NULLIF(\"thoiGianCapNhat\", '')::timestamp < %(end)s
             """
-        ).format(
-            schema=sql.Identifier(schema_name),
-            table=sql.Identifier(table_name),
-        )
+        ).format(schema=sql.Identifier(schema_name), table=sql.Identifier(table_name))
 
         with conn.cursor() as cur:
             cur.execute(query, {"start": start, "end": end})
-            rows = [dict(row) for row in cur.fetchall()]
+            while True:
+                rows = cur.fetchmany(FETCH_BATCH_SIZE)
+                if not rows:
+                    break
+
+                records = [flatten_hiv_aids(dict(row)) for row in rows]
+                yield _normalize_dataframe(records)
     finally:
         conn.close()
-
-    if not rows:
-        yield from ()
-        return
-
-    records = [flatten(row) for row in rows]
-    df = pd.DataFrame(records)
-
-    df["_airbyte_extracted_at"] = pd.to_datetime(df["_airbyte_extracted_at"], errors="coerce")
-    df["thoi_gian_cap_nhat"] = pd.to_datetime(df["thoi_gian_cap_nhat"], errors="coerce")
-
-    date_cols = [
-        "ngay_sinh",
-        "ngay_kd_hiv",
-        "ngay_bd_dt_arv",
-        "ngay_chuyen_phac_do",
-        "ngay_bd_xu_tri",
-        "ngay_kt_xu_tri",
-        "ngay_bd_dieu_tri_lao",
-        "ngay_kt_dieu_tri_lao",
-        "ngay_xn_tlvr",
-        "ngay_kq_xn_tlvr",
-    ]
-    for col in date_cols:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
-
-    if "_airbyte_generation_id" in df.columns:
-        df["_airbyte_generation_id"] = pd.to_numeric(
-            df["_airbyte_generation_id"], errors="coerce"
-        ).astype("Int64")
-
-    if "so_ngay_cap_thuoc_arv" in df.columns:
-        df["so_ngay_cap_thuoc_arv"] = pd.to_numeric(
-            df["so_ngay_cap_thuoc_arv"], errors="coerce"
-        )
-
-    # SQLMesh/Postgres must receive Python None for null timestamps/dates.
-    # Leaving pandas NaT values in the frame causes CAST('NaT' AS TIMESTAMP)
-    # during insertion, which PostgreSQL rejects.
-    df = df.astype(object).where(pd.notna(df), None)
-
-    yield df

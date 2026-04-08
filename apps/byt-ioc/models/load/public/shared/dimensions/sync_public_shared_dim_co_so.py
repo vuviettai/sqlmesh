@@ -9,13 +9,13 @@ from sqlmesh import ExecutionContext, model
 
 
 @model(
-    "sqlmesh_work.sync_public_tbl_dim_co_so",
+    "sqlmesh_work.sync_public_shared_dim_co_so",
     kind="FULL",
     owner="data_team",
     cron="@daily",
     depends_on=[
         "sqlmesh_work.stg_hiv_aids",
-        "sqlmesh_work.sync_public_tbl_don_vi_hanh_chinh",
+        "sqlmesh_work.sync_public_shared_don_vi_hanh_chinh",
     ],
     columns={
         "target_table": "text",
@@ -36,7 +36,7 @@ def execute(
 
     context.engine_adapter.execute(
         f"""
-        UPDATE public.tbl_dim_co_so d
+        UPDATE public.dim_co_so d
         SET ma_tinh = src.ma_tinh,
             ngay_cap_nhat = CURRENT_DATE
         FROM (
@@ -75,14 +75,14 @@ def execute(
         missing AS (
             SELECT s.*
             FROM src s
-            LEFT JOIN public.tbl_dim_co_so d
+            LEFT JOIN public.dim_co_so d
               ON d.ma_co_so = s.ma_co_so
             WHERE d.ma_co_so IS NULL
         ),
         base AS (
-            SELECT COALESCE(MAX(id), 0) AS max_id FROM public.tbl_dim_co_so
+            SELECT COALESCE(MAX(id), 0) AS max_id FROM public.dim_co_so
         )
-        INSERT INTO public.tbl_dim_co_so (
+        INSERT INTO public.dim_co_so (
             id,
             ma_co_so,
             ten_co_so,
@@ -106,7 +106,7 @@ def execute(
         """
     )
 
-    rows_loaded = int(context.fetchdf("SELECT COUNT(*) AS cnt FROM public.tbl_dim_co_so").iloc[0]["cnt"])
+    rows_loaded = int(context.fetchdf("SELECT COUNT(*) AS cnt FROM public.dim_co_so").iloc[0]["cnt"])
     return pd.DataFrame(
-        [{"target_table": "public.tbl_dim_co_so", "rows_loaded": rows_loaded, "loaded_at": execution_time}]
+        [{"target_table": "public.dim_co_so", "rows_loaded": rows_loaded, "loaded_at": execution_time}]
     )
