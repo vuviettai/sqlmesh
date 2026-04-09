@@ -32,32 +32,33 @@ _load_dotenv_if_present()
 # ---------------------------------------------------------------------------
 # BI database: destination where all transformed models are materialised.
 # ---------------------------------------------------------------------------
-_bi = PostgresConnectionConfig(
-    host=os.environ.get("BI_DB_HOST", "localhost"),
-    port=int(os.environ.get("BI_DB_PORT", "5432")),
-    database=os.environ.get("BI_DB_NAME", "bi"),
-    user=os.environ.get("BI_DB_USER", "user"),
-    password=os.environ.get("BI_DB_PASSWORD", ""),
+_ioc = PostgresConnectionConfig(
+    host=os.environ.get("IOC_DB_HOST", "localhost"),
+    port=int(os.environ.get("IOC_DB_PORT", "5432")),
+    database=os.environ.get("IOC_DB_NAME", "bi"),
+    user=os.environ.get("IOC_DB_USER", "user"),
+    password=os.environ.get("IOC_DB_PASSWORD", ""),
 )
 
 # SQLMesh state is stored in a dedicated database by default. If state DB env
 # vars are missing, it falls back to BI DB for backward compatibility.
 _state = PostgresConnectionConfig(
-    host=os.environ.get("SQLMESH_STATE_DB_HOST", os.environ.get("BI_DB_HOST", "localhost")),
-    port=int(os.environ.get("SQLMESH_STATE_DB_PORT", os.environ.get("BI_DB_PORT", "5432"))),
-    database=os.environ.get("SQLMESH_STATE_DB_NAME", os.environ.get("BI_DB_NAME", "bi")),
-    user=os.environ.get("SQLMESH_STATE_DB_USER", os.environ.get("BI_DB_USER", "user")),
-    password=os.environ.get("SQLMESH_STATE_DB_PASSWORD", os.environ.get("BI_DB_PASSWORD", "")),
+    host=os.environ.get("SQLMESH_STATE_DB_HOST", os.environ.get("IOC_DB_HOST", "localhost")),
+    port=int(os.environ.get("SQLMESH_STATE_DB_PORT", os.environ.get("IOC_DB_PORT", "5432"))),
+    database=os.environ.get("SQLMESH_STATE_DB_NAME", os.environ.get("IOC_DB_NAME", "bi")),
+    user=os.environ.get("SQLMESH_STATE_DB_USER", os.environ.get("IOC_DB_USER", "user")),
+    password=os.environ.get("SQLMESH_STATE_DB_PASSWORD", os.environ.get("IOC_DB_PASSWORD", "")),
 )
 
 config = Config(
     gateways={
-        "bi": GatewayConfig(
-            connection=_bi,
+        "ioc": GatewayConfig(
+            connection=_ioc,
             state_connection=_state,
             state_schema="sqlmesh_state",
         ),
     },
-    default_gateway="bi",
+    default_gateway="ioc",
+
     model_defaults=ModelDefaultsConfig(dialect="postgres"),
 )

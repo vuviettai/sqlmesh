@@ -25,6 +25,13 @@ def migrate_schemas(engine_adapter, schema, **kwargs):  # type: ignore
         primary_key=("snapshot_name", "snapshot_version"),
     )
 
+    if not engine_adapter.table_exists(intervals_table):
+        return
+
+    interval_columns = engine_adapter.columns(intervals_table)
+    if "is_pending_restatement" in interval_columns:
+        return
+
     alter_table_exp = exp.Alter(
         this=exp.to_table(intervals_table),
         kind="TABLE",
@@ -43,6 +50,13 @@ def migrate_rows(engine_adapter, schema, **kwargs):  # type: ignore
 
     if schema:
         intervals_table = f"{schema}.{intervals_table}"
+
+    if not engine_adapter.table_exists(intervals_table):
+        return
+
+    interval_columns = engine_adapter.columns(intervals_table)
+    if "is_pending_restatement" not in interval_columns:
+        return
 
     engine_adapter.update_table(
         intervals_table,

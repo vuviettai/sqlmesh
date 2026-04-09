@@ -7,7 +7,7 @@
 # Because staging is a separate Postgres instance these tables are NOT
 # queryable via SQL from the BI gateway. They are documented here for DAG
 # lineage and column-level documentation only. The Python model
-# `public.stg_hiv_aids` reads from staging_db.public.HivAids using a direct
+# `public.hiv_stg_aids` reads from staging_db.public.HivAids using a direct
 # psycopg2 connection configured through the project's .env file.
 # =============================================================================
 

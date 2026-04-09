@@ -23,6 +23,13 @@ def _pick_current_work_history(work_histories: t.Any) -> dict[str, t.Any]:
     return next((item for item in work_histories if isinstance(item, dict)), {})
 
 
+def _pick_first_non_empty(*values: t.Any) -> t.Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def flatten_beneficiary(record: dict[str, t.Any]) -> dict[str, t.Any]:
     """Flatten a BTXH beneficiary record into a current-state staging row."""
     residence = record.get("residence") or {}
@@ -140,18 +147,28 @@ def explode_beneficiary_center_profiles(record: dict[str, t.Any]) -> list[dict[s
 
 def flatten_care_activity(record: dict[str, t.Any]) -> dict[str, t.Any]:
     """Flatten a BTXH care activity record into one row per care plan activity."""
-    person = record.get("person") or {}
+    social_worker = record.get("person") or {}
     care_plan = record.get("carePlan") or {}
-    center_profiles = person.get("centerProfiles") or []
+    beneficiary = care_plan.get("beneficiary") or {}
+    center_profiles = beneficiary.get("centerProfiles") or care_plan.get("centerProfiles") or []
     primary_profile = pick_primary_center_profile(center_profiles)
 
-    gender_code = person.get("gender")
+    beneficiary_gender_code = _pick_first_non_empty(
+        beneficiary.get("gender"),
+        care_plan.get("beneficiaryGender"),
+    )
+    social_worker_gender_code = social_worker.get("gender")
     try:
-        gender_int = int(gender_code) if gender_code is not None else None
+        beneficiary_gender_int = int(beneficiary_gender_code) if beneficiary_gender_code is not None else None
     except (TypeError, ValueError):
-        gender_int = None
+        beneficiary_gender_int = None
+    try:
+        social_worker_gender_int = int(social_worker_gender_code) if social_worker_gender_code is not None else None
+    except (TypeError, ValueError):
+        social_worker_gender_int = None
 
-    gender_label = {1: "NAM", 2: "NU"}.get(gender_int, "KHONG_XAC_DINH")
+    beneficiary_gender_label = {1: "NAM", 2: "NU"}.get(beneficiary_gender_int, "KHONG_XAC_DINH")
+    social_worker_gender_label = {1: "NAM", 2: "NU"}.get(social_worker_gender_int, "KHONG_XAC_DINH")
     implementing_units = care_plan.get("implementingUnits")
 
     return {
@@ -159,16 +176,36 @@ def flatten_care_activity(record: dict[str, t.Any]) -> dict[str, t.Any]:
         "_airbyte_extracted_at": record.get("_airbyte_extracted_at"),
         "_airbyte_generation_id": record.get("_airbyte_generation_id"),
         "care_activity_id": record.get("id"),
-        "beneficiary_id": person.get("id") or care_plan.get("personId"),
+        "social_worker_id": _pick_first_non_empty(social_worker.get("personId"), social_worker.get("id")),
+        "beneficiary_id": _pick_first_non_empty(
+            care_plan.get("beneficiaryId"),
+            beneficiary.get("id"),
+        ),
         "su_kien": record.get("suKien"),
         "phien_ban": record.get("phienBan"),
         "created_at": parse_compact_timestamp(record.get("createdAtmm")),
         "updated_at": parse_compact_timestamp(record.get("updatedAtmm")),
-        "ho_va_ten": person.get("fullName") or care_plan.get("beneficiaryName"),
-        "gioi_tinh_ma": gender_int,
-        "gioi_tinh": gender_label,
-        "ngay_sinh": parse_iso_date(person.get("dateOfBirth")),
-        "quoc_tich": person.get("nationality"),
+        "beneficiary_ho_va_ten": _pick_first_non_empty(
+            beneficiary.get("fullName"),
+            care_plan.get("beneficiaryName"),
+        ),
+        "beneficiary_gioi_tinh_ma": beneficiary_gender_int,
+        "beneficiary_gioi_tinh": beneficiary_gender_label,
+        "beneficiary_ngay_sinh": parse_iso_date(
+            _pick_first_non_empty(
+                beneficiary.get("dateOfBirth"),
+                care_plan.get("beneficiaryDateOfBirth"),
+            )
+        ),
+        "beneficiary_quoc_tich": _pick_first_non_empty(
+            beneficiary.get("nationality"),
+            care_plan.get("beneficiaryNationality"),
+        ),
+        "social_worker_ho_va_ten": social_worker.get("fullName"),
+        "social_worker_gioi_tinh_ma": social_worker_gender_int,
+        "social_worker_gioi_tinh": social_worker_gender_label,
+        "social_worker_ngay_sinh": parse_iso_date(social_worker.get("dateOfBirth")),
+        "social_worker_quoc_tich": social_worker.get("nationality"),
         "center_profile_id": primary_profile.get("id"),
         "ma_co_so": primary_profile.get("facilityCode"),
         "ten_co_so": primary_profile.get("facilityName"),
@@ -347,7 +384,7 @@ def explode_social_worker_work_histories(record: dict[str, t.Any]) -> list[dict[
         return []
 
     updated_at = parse_epoch_millis(record.get("updatedAt")) or parse_compact_timestamp(record.get("updatedAtmm"))
-    social_worker_id = record.get("id")
+    social_worker_id = _pick_first_non_empty(record.get("socialWorkerId"), record.get("id"))
 
     rows: list[dict[str, t.Any]] = []
     for history in work_histories:
@@ -405,7 +442,11 @@ def flatten_work_history_record(record: dict[str, t.Any]) -> dict[str, t.Any]:
         "phien_ban": record.get("phienBan"),
         "created_at": parse_epoch_millis(record.get("createdAt")) or parse_compact_timestamp(record.get("createdAtmm")),
         "updated_at": parse_epoch_millis(record.get("updatedAt")) or parse_compact_timestamp(record.get("updatedAtmm")),
-        "social_worker_id": social_worker.get("id"),
+        "social_worker_id": _pick_first_non_empty(
+            work_history.get("socialWorkerId"),
+            social_worker.get("socialWorkerId"),
+            social_worker.get("id"),
+        ),
         "ho_va_ten": social_worker.get("fullName"),
         "email": social_worker.get("email"),
         "phone_number": social_worker.get("phoneNumber"),

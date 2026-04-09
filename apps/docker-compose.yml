@@ -8,22 +8,24 @@ services:
       dockerfile: apps/Dockerfile
     image: sqlmesh:latest
     container_name: sqlmesh_byt_ioc
+    env_file:
+      - ./byt-ioc/.env
     environment:
       PROJECT_PATH: /app/project
       UI_MODE: ${UI_MODE:-ide}
        # Staging database (source – populated by Airbyte)
       STAGING_DB_HOST: host.docker.internal
-      STAGING_DB_PORT: "5434"
-      STAGING_DB_NAME: ${STAGING_DB_NAME:-staging_db}
-      STAGING_DB_USER: ${STAGING_DB_USER:-pguser}
-      STAGING_DB_PASSWORD: ${STAGING_DB_PASSWORD:-pgpassword}
+      STAGING_DB_PORT: ${STAGING_DB_PORT:-5444}
+      STAGING_DB_NAME: ${STAGING_DB_NAME:-staging}
+      STAGING_DB_USER: ${STAGING_DB_USER:-staging}
+      STAGING_DB_PASSWORD: ${STAGING_DB_PASSWORD:-staging}
       AIRBYTE_RAW_SCHEMA: ${AIRBYTE_RAW_SCHEMA:-airbyte_internal}
       # BI database (destination for transformed models + SQLMesh state)
       BI_DB_HOST: host.docker.internal
-      BI_DB_PORT: "5435"
-      BI_DB_NAME: ${BI_DB_NAME:-bi_db}
-      BI_DB_USER: ${BI_DB_USER:-pguser}
-      BI_DB_PASSWORD: ${BI_DB_PASSWORD:-pgpassword}
+      BI_DB_PORT: ${IOC_DB_PORT:-5445}
+      BI_DB_NAME: ${IOC_DB_NAME:-bi_db}
+      BI_DB_USER: ${IOC_DB_USER:-bi_user}
+      BI_DB_PASSWORD: ${IOC_DB_PASSWORD:-bi_password}
       # SQLMesh state database (snapshots, environments, intervals...)
       SQLMESH_STATE_DB_HOST: ${SQLMESH_STATE_DB_HOST:-sqlmesh_state_postgres}
       SQLMESH_STATE_DB_PORT: "${SQLMESH_STATE_DB_PORT:-5432}"
@@ -38,6 +40,8 @@ services:
       sqlmesh_state_postgres:
         condition: service_healthy
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # ---------------------------------------------------------------------------
   # Dedicated SQLMesh state database (separate from BI data warehouse).
