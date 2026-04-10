@@ -39,31 +39,15 @@ deduped AS (
         updated_at DESC NULLS LAST
     ) AS rn
   FROM all_ethnicities
-),
-existing_ids AS (
-  SELECT ma_dan_toc, id FROM public.btxh_dim_dan_toc
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val FROM public.btxh_dim_dan_toc
-),
-new_rows AS (
-  SELECT
-    d.ma_dan_toc,
-    ROW_NUMBER() OVER (ORDER BY d.ma_dan_toc) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_dan_toc = d.ma_dan_toc
-  WHERE d.rn = 1
-    AND e.ma_dan_toc IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT          AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.ma_dan_toc, ''), 0) & 9223372036854775807)::BIGINT
+                                                             AS id,
   d.ma_dan_toc::VARCHAR(20)                                  AS ma_dan_toc,
   COALESCE(NULLIF(d.ten_dan_toc, ''), 'KHONG_XAC_DINH')::VARCHAR(100)
                                                              AS ten_dan_toc,
   d.updated_at::DATE                                         AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_dan_toc = d.ma_dan_toc
-LEFT JOIN new_rows     n ON n.ma_dan_toc = d.ma_dan_toc
 WHERE d.rn = 1
 """
 

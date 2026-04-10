@@ -43,26 +43,10 @@ WITH deduped AS (
   WHERE center_profile_id IS NOT NULL
     AND beneficiary_id IS NOT NULL
     AND ma_co_so IS NOT NULL
-),
-existing_ids AS (
-  SELECT ma_ho_so_trung_tam, id
-  FROM public.btxh_fact_ho_so_trung_tam
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val
-  FROM public.btxh_fact_ho_so_trung_tam
-),
-new_rows AS (
-  SELECT
-    d.center_profile_id,
-    ROW_NUMBER() OVER (ORDER BY d.center_profile_id) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_ho_so_trung_tam = d.center_profile_id
-  WHERE d.rn = 1
-    AND e.ma_ho_so_trung_tam IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT   AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.center_profile_id, ''), 0) & 9223372036854775807)::BIGINT
+                                                      AS id,
   d.center_profile_id::VARCHAR(64)                    AS ma_ho_so_trung_tam,
   d.beneficiary_id::VARCHAR(64)                       AS ma_nguoi_thu_huong,
   d.ma_co_so::VARCHAR(30)                             AS ma_co_so,
@@ -83,8 +67,6 @@ SELECT
   COALESCE(d.profile_deleted, FALSE)::BOOLEAN         AS ho_so_da_xoa,
   d.updated_at::DATE                                  AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_ho_so_trung_tam = d.center_profile_id
-LEFT JOIN new_rows     n ON n.center_profile_id   = d.center_profile_id
 WHERE d.rn = 1
 """
 
@@ -103,7 +85,7 @@ def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
     del kwargs
     df = context.fetchdf(
         QUERY.format(
-            stg_center_profiles=context.resolve_table("sqlmesh_work.btxh_stg_center_profiles")
+            stg_center_profiles=context.resolve_table("sqlmesh_work.btxh_stg_center_profiles"),
         )
     )
     if df.empty:

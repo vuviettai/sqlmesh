@@ -39,30 +39,13 @@ deduped AS (
         updated_at DESC NULLS LAST
     ) AS rn
   FROM all_positions
-),
-existing_ids AS (
-  SELECT ma_vi_tri, id FROM public.btxh_dim_vi_tri_cong_tac
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val FROM public.btxh_dim_vi_tri_cong_tac
-),
-new_rows AS (
-  SELECT
-    d.ma_vi_tri,
-    ROW_NUMBER() OVER (ORDER BY d.ma_vi_tri) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_vi_tri = d.ma_vi_tri
-  WHERE d.rn = 1
-    AND e.ma_vi_tri IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.ma_vi_tri, ''), 0) & 9223372036854775807)::BIGINT AS id,
   d.ma_vi_tri::VARCHAR(50) AS ma_vi_tri,
   COALESCE(NULLIF(d.ten_vi_tri, ''), 'KHONG_XAC_DINH')::VARCHAR(255) AS ten_vi_tri,
   d.updated_at::DATE AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_vi_tri = d.ma_vi_tri
-LEFT JOIN new_rows n ON n.ma_vi_tri = d.ma_vi_tri
 WHERE d.rn = 1
 """
 

@@ -50,26 +50,10 @@ WITH deduped AS (
   FROM {stg_care_activities}
   WHERE care_activity_id IS NOT NULL
     AND beneficiary_id IS NOT NULL
-),
-existing_ids AS (
-  SELECT ma_hoat_dong_cham_soc, id
-  FROM public.btxh_fact_hoat_dong_cham_soc
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val
-  FROM public.btxh_fact_hoat_dong_cham_soc
-),
-new_rows AS (
-  SELECT
-    d.care_activity_id,
-    ROW_NUMBER() OVER (ORDER BY d.care_activity_id) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_hoat_dong_cham_soc = d.care_activity_id
-  WHERE d.rn = 1
-    AND e.ma_hoat_dong_cham_soc IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT         AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.care_activity_id, ''), 0) & 9223372036854775807)::BIGINT
+                                                            AS id,
   d.care_activity_id::VARCHAR(64)                           AS ma_hoat_dong_cham_soc,
   d.beneficiary_id::VARCHAR(64)                             AS ma_nguoi_thu_huong,
   d.ma_co_so::VARCHAR(30)                                   AS ma_co_so,
@@ -98,8 +82,6 @@ SELECT
   COALESCE(d.implementing_unit_count, 0)::INT               AS so_don_vi_thuc_hien,
   d.updated_at::DATE                                        AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_hoat_dong_cham_soc = d.care_activity_id
-LEFT JOIN new_rows     n ON n.care_activity_id       = d.care_activity_id
 WHERE d.rn = 1
 """
 
@@ -118,7 +100,7 @@ def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
     del kwargs
     df = context.fetchdf(
         QUERY.format(
-            stg_care_activities=context.resolve_table("sqlmesh_work.btxh_stg_care_activities")
+            stg_care_activities=context.resolve_table("sqlmesh_work.btxh_stg_care_activities"),
         )
     )
     if df.empty:

@@ -36,29 +36,12 @@ WITH deduped AS (
   FROM {stg_facilities}
   WHERE facility_code IS NOT NULL
     AND updated_at IS NOT NULL
-),
-existing_ids AS (
-  SELECT ma_co_so, ngay_cap_nhat, id
-  FROM public.btxh_fact_nang_luc_co_so
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val
-  FROM public.btxh_fact_nang_luc_co_so
-),
-new_rows AS (
-  SELECT
-    d.facility_code,
-    d.updated_at::DATE AS ngay_cap_nhat,
-    ROW_NUMBER() OVER (ORDER BY d.facility_code, d.updated_at::DATE) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e
-    ON  e.ma_co_so      = d.facility_code
-    AND e.ngay_cap_nhat = d.updated_at::DATE
-  WHERE d.rn = 1
-    AND e.ma_co_so IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT             AS id,
+  (
+    HASHTEXTEXTENDED(CONCAT_WS('||', COALESCE(d.facility_code, ''), COALESCE(d.updated_at::DATE::TEXT, '')), 0)
+    & 9223372036854775807
+  )::BIGINT                                                        AS id,
   d.facility_code::VARCHAR(30)                                  AS ma_co_so,
   d.facility_id::VARCHAR(64)                                    AS ma_dinh_danh_nguon_co_so,
   d.center_type_code::VARCHAR(50)                               AS ma_loai_trung_tam,
@@ -78,12 +61,6 @@ SELECT
   COALESCE(d.is_active, TRUE)::BOOLEAN                          AS dang_hoat_dong,
   d.updated_at::DATE                                            AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e
-  ON  e.ma_co_so      = d.facility_code
-  AND e.ngay_cap_nhat = d.updated_at::DATE
-LEFT JOIN new_rows n
-  ON  n.facility_code = d.facility_code
-  AND n.ngay_cap_nhat = d.updated_at::DATE
 WHERE d.rn = 1
 """
 
@@ -108,7 +85,7 @@ def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
     del kwargs
     df = context.fetchdf(
         QUERY.format(
-            stg_facilities=context.resolve_table("sqlmesh_work.btxh_stg_facilities")
+            stg_facilities=context.resolve_table("sqlmesh_work.btxh_stg_facilities"),
         )
     )
     if df.empty:

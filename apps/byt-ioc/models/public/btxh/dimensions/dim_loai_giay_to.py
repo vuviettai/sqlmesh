@@ -45,31 +45,15 @@ deduped AS (
         updated_at DESC NULLS LAST
     ) AS rn
   FROM all_doc_types
-),
-existing_ids AS (
-  SELECT ma_loai_giay_to, id FROM public.btxh_dim_loai_giay_to
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val FROM public.btxh_dim_loai_giay_to
-),
-new_rows AS (
-  SELECT
-    d.ma_loai_giay_to,
-    ROW_NUMBER() OVER (ORDER BY d.ma_loai_giay_to) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_loai_giay_to = d.ma_loai_giay_to
-  WHERE d.rn = 1
-    AND e.ma_loai_giay_to IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT          AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.ma_loai_giay_to, ''), 0) & 9223372036854775807)::BIGINT
+                                                             AS id,
   d.ma_loai_giay_to::VARCHAR(20)                             AS ma_loai_giay_to,
   COALESCE(NULLIF(d.ten_loai_giay_to, ''), 'KHONG_XAC_DINH')::VARCHAR(100)
                                                              AS ten_loai_giay_to,
   d.updated_at::DATE                                         AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_loai_giay_to = d.ma_loai_giay_to
-LEFT JOIN new_rows     n ON n.ma_loai_giay_to = d.ma_loai_giay_to
 WHERE d.rn = 1
 """
 

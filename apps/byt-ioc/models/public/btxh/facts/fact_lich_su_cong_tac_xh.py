@@ -88,26 +88,10 @@ deduped AS (
         _airbyte_extracted_at DESC NULLS LAST
     ) AS rn
   FROM combined
-),
-existing_ids AS (
-  SELECT ma_lich_su_cong_tac, id
-  FROM public.btxh_fact_lich_su_cong_tac_xh
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val
-  FROM public.btxh_fact_lich_su_cong_tac_xh
-),
-new_rows AS (
-  SELECT
-    d.work_history_id,
-    ROW_NUMBER() OVER (ORDER BY d.work_history_id) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_lich_su_cong_tac = d.work_history_id
-  WHERE d.rn = 1
-    AND e.ma_lich_su_cong_tac IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT   AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.work_history_id, ''), 0) & 9223372036854775807)::BIGINT
+                                                      AS id,
   d.work_history_id::VARCHAR(64)                      AS ma_lich_su_cong_tac,
   d.social_worker_id::VARCHAR(64)                     AS ma_nhan_vien_ctxh,
   d.facility_code::VARCHAR(30)                        AS ma_co_so,
@@ -125,8 +109,6 @@ SELECT
   d.nguon::VARCHAR(20)                                AS nguon,
   d.updated_at::DATE                                  AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_lich_su_cong_tac = d.work_history_id
-LEFT JOIN new_rows     n ON n.work_history_id      = d.work_history_id
 WHERE d.rn = 1
 """
 

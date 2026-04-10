@@ -39,30 +39,13 @@ deduped AS (
         updated_at DESC NULLS LAST
     ) AS rn
   FROM all_contract_types
-),
-existing_ids AS (
-  SELECT ma_loai_hop_dong, id FROM public.btxh_dim_loai_hop_dong
-),
-max_id AS (
-  SELECT COALESCE(MAX(id), 0) AS val FROM public.btxh_dim_loai_hop_dong
-),
-new_rows AS (
-  SELECT
-    d.ma_loai_hop_dong,
-    ROW_NUMBER() OVER (ORDER BY d.ma_loai_hop_dong) AS seq
-  FROM deduped d
-  LEFT JOIN existing_ids e ON e.ma_loai_hop_dong = d.ma_loai_hop_dong
-  WHERE d.rn = 1
-    AND e.ma_loai_hop_dong IS NULL
 )
 SELECT
-  COALESCE(e.id, (SELECT val FROM max_id) + n.seq)::BIGINT AS id,
+  (HASHTEXTEXTENDED(COALESCE(d.ma_loai_hop_dong, ''), 0) & 9223372036854775807)::BIGINT AS id,
   d.ma_loai_hop_dong::VARCHAR(50) AS ma_loai_hop_dong,
   COALESCE(NULLIF(d.ten_loai_hop_dong, ''), 'KHONG_XAC_DINH')::VARCHAR(255) AS ten_loai_hop_dong,
   d.updated_at::DATE AS ngay_cap_nhat
 FROM deduped d
-LEFT JOIN existing_ids e ON e.ma_loai_hop_dong = d.ma_loai_hop_dong
-LEFT JOIN new_rows n ON n.ma_loai_hop_dong = d.ma_loai_hop_dong
 WHERE d.rn = 1
 """
 
