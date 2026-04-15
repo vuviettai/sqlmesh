@@ -118,30 +118,25 @@ def execute(
                 _airbyte_extracted_at,
                 _airbyte_generation_id,
                 id,
-                active,
                 gender,
                 \"suKien\",
                 \"fullName\",
                 \"phienBan\",
-                \"createdAt\",
                 ethnicity,
                 residence,
-                \"updatedAt\",
                 \"createdAtmm\",
                 \"dateOfBirth\",
                 nationality,
                 \"updatedAtmm\",
                 \"paperIdentity\",
                 \"placeOfOrigin\",
-                \"centerProfiles\"
+                \"centerProfile\"
             FROM {schema}.{table}
             WHERE COALESCE(
-                TO_TIMESTAMP(\"updatedAt\" / 1000.0),
                 TO_TIMESTAMP(NULLIF(\"updatedAtmm\", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
             ) >= %(start)s
               AND COALESCE(
-                TO_TIMESTAMP(\"updatedAt\" / 1000.0),
                 TO_TIMESTAMP(NULLIF(\"updatedAtmm\", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
               ) < %(end)s

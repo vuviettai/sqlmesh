@@ -18,12 +18,6 @@ MODEL_COLUMNS = {
 QUERY = """
 WITH all_positions AS (
   SELECT position_code AS ma_vi_tri, position_name AS ten_vi_tri, updated_at
-  FROM {stg_social_worker_work_histories}
-  WHERE NULLIF(position_code, '') IS NOT NULL
-
-  UNION ALL
-
-  SELECT position_code AS ma_vi_tri, position_name AS ten_vi_tri, updated_at
   FROM {stg_work_histories}
   WHERE NULLIF(position_code, '') IS NOT NULL
 ),
@@ -59,17 +53,13 @@ WHERE d.rn = 1
     tags=["dimension", "btxh", "reference"],
     columns=MODEL_COLUMNS,
     description=(
-        "BTXH work position dimension - distinct position codes observed in "
-        "social worker work histories."
+      "BTXH work position dimension - distinct position codes from WorkHistories."
     ),
 )
 def execute(context: ExecutionContext, **kwargs: t.Any) -> t.Iterator[pd.DataFrame]:
     del kwargs
     df = context.fetchdf(
         QUERY.format(
-            stg_social_worker_work_histories=context.resolve_table(
-                "sqlmesh_work.btxh_stg_social_worker_work_histories"
-            ),
             stg_work_histories=context.resolve_table("sqlmesh_work.btxh_stg_work_histories"),
         )
     )

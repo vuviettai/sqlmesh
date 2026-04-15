@@ -1,4 +1,4 @@
-"""Explode SocialWorkers.workHistories into sqlmesh_work.btxh_stg_social_worker_work_histories."""
+"""Explode Beneficiaries.centerProfiles[].medicalInfo into sqlmesh_work.btxh_stg_center_profile_medical_info."""
 from __future__ import annotations
 
 import os
@@ -11,7 +11,7 @@ from psycopg2 import sql
 from sqlmesh import ExecutionContext, model
 from sqlmesh.core.model.kind import ModelKindName
 
-from .btxh_helper import explode_social_worker_work_histories
+from .btxh_helper import explode_center_profile_medical_info
 from .._helpers.db import get_connection
 from .._helpers.env import load_dotenv_if_present
 
@@ -20,28 +20,24 @@ MODEL_COLUMNS = {
     "_airbyte_raw_id": "text",
     "_airbyte_extracted_at": "timestamptz",
     "_airbyte_generation_id": "bigint",
-    "social_worker_id": "text",
-    "updated_at": "timestamp",
-    "work_history_id": "text",
-    "is_current": "boolean",
-    "status": "text",
-    "start_date": "date",
-    "end_date": "date",
+    "beneficiary_id": "text",
+    "center_profile_id": "text",
     "facility_id": "text",
     "facility_code": "text",
-    "facility_name": "text",
-    "facility_type": "text",
-    "position_id": "text",
-    "position_code": "text",
-    "position_name": "text",
-    "contract_type_id": "text",
-    "contract_type_code": "text",
-    "contract_type_name": "text",
-    "job_description": "text",
+    "updated_at": "timestamp",
+    "medical_person_id": "text",
+    "labor_capacity": "text",
+    "medical_record": "text",
+    "disability_type_code": "text",
+    "disability_cause_code": "text",
+    "disability_level_code": "text",
+    "self_service_ability_code": "text",
+    "physical_mental_status": "text",
+    "disability_characteristics": "text",
+    "other_disability_cause": "text",
 }
 
 TIMESTAMP_COLUMNS = ("_airbyte_extracted_at", "updated_at")
-DATE_COLUMNS = ("start_date", "end_date")
 INTEGER_COLUMNS = ("_airbyte_generation_id",)
 FETCH_BATCH_SIZE = 5_000
 
@@ -52,8 +48,6 @@ def _normalize_dataframe(records: list[dict[str, t.Any]]) -> pd.DataFrame:
 
     for col in TIMESTAMP_COLUMNS:
         df[col] = pd.to_datetime(df[col], errors="coerce")
-    for col in DATE_COLUMNS:
-        df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
     for col in INTEGER_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
@@ -61,16 +55,16 @@ def _normalize_dataframe(records: list[dict[str, t.Any]]) -> pd.DataFrame:
 
 
 @model(
-    "sqlmesh_work.btxh_stg_social_worker_work_histories",
+    "sqlmesh_work.btxh_stg_center_profile_medical_info",
     description=(
-        "Exploded BTXH social worker work history records from public.\"SocialWorkers\" "
-        "with one row per work history item."
+        "Exploded BTXH center-profile medical info from public.\"Beneficiaries\" "
+        "with one row per center profile having medicalInfo."
     ),
     kind=dict(name=ModelKindName.INCREMENTAL_BY_TIME_RANGE, time_column="updated_at", batch_size=90),
     start="2020-01-01",
     cron="@daily",
     owner="data_team",
-    grain=["work_history_id"],
+    grain=["center_profile_id"],
     columns=MODEL_COLUMNS,
 )
 def execute(
@@ -86,7 +80,7 @@ def execute(
     conn = get_connection()
     try:
         schema_name = os.environ.get("STAGING_DB_SCHEMA", "public")
-        table_name = os.environ.get("STAGING_BTXH_SOCIAL_WORKER_SOURCE_TABLE", "SocialWorkers")
+        table_name = os.environ.get("STAGING_BTXH_SOURCE_TABLE", "Beneficiaries")
         query = sql.SQL(
             """
             SELECT
@@ -94,17 +88,14 @@ def execute(
                 _airbyte_extracted_at,
                 _airbyte_generation_id,
                 id,
-                "updatedAt",
                 "updatedAtmm",
-                "workHistories"
+                "centerProfile"
             FROM {schema}.{table}
             WHERE COALESCE(
-                TO_TIMESTAMP("updatedAt" / 1000.0),
                 TO_TIMESTAMP(NULLIF("updatedAtmm", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
             ) >= %(start)s
               AND COALESCE(
-                TO_TIMESTAMP("updatedAt" / 1000.0),
                 TO_TIMESTAMP(NULLIF("updatedAtmm", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
               ) < %(end)s
@@ -120,7 +111,7 @@ def execute(
 
                 records: list[dict[str, t.Any]] = []
                 for row in rows:
-                    records.extend(explode_social_worker_work_histories(dict(row)))
+                    records.extend(explode_center_profile_medical_info(dict(row)))
 
                 if records:
                     yield _normalize_dataframe(records)

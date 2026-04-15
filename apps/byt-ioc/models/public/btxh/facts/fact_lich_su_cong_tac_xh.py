@@ -30,86 +30,28 @@ MODEL_COLUMNS = {
 
 
 QUERY = """
-WITH combined AS (
-  SELECT
-    work_history_id,
-    social_worker_id,
-    facility_code,
-    facility_name,
-    facility_type,
-    position_code,
-    position_name,
-    contract_type_code,
-    contract_type_name,
-    job_description,
-    start_date,
-    end_date,
-    is_current,
-    status,
-    updated_at,
-    _airbyte_extracted_at,
-    'WORK_HISTORIES'  AS nguon
-  FROM {stg_work_histories}
-  WHERE work_history_id  IS NOT NULL
-    AND social_worker_id IS NOT NULL
-
-  UNION ALL
-
-  SELECT
-    work_history_id,
-    social_worker_id,
-    facility_code,
-    facility_name,
-    facility_type,
-    position_code,
-    position_name,
-    contract_type_code,
-    contract_type_name,
-    job_description,
-    start_date,
-    end_date,
-    is_current,
-    status,
-    updated_at,
-    _airbyte_extracted_at,
-    'SOCIAL_WORKERS'  AS nguon
-  FROM {stg_social_worker_work_histories}
-  WHERE work_history_id  IS NOT NULL
-    AND social_worker_id IS NOT NULL
-),
-deduped AS (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (
-      PARTITION BY work_history_id
-      ORDER BY
-        (nguon = 'WORK_HISTORIES') DESC,
-        updated_at DESC NULLS LAST,
-        _airbyte_extracted_at DESC NULLS LAST
-    ) AS rn
-  FROM combined
-)
 SELECT
-  (HASHTEXTEXTENDED(COALESCE(d.work_history_id, ''), 0) & 9223372036854775807)::BIGINT
+  (HASHTEXTEXTENDED(COALESCE(s.work_history_id, ''), 0) & 9223372036854775807)::BIGINT
                                                       AS id,
-  d.work_history_id::VARCHAR(64)                      AS ma_lich_su_cong_tac,
-  d.social_worker_id::VARCHAR(64)                     AS ma_nhan_vien_ctxh,
-  d.facility_code::VARCHAR(30)                        AS ma_co_so,
-  d.facility_name::VARCHAR(255)                       AS ten_co_so,
-  d.facility_type::VARCHAR(50)                        AS loai_co_so,
-  d.position_code::VARCHAR(50)                        AS ma_vi_tri,
-  d.position_name::VARCHAR(255)                       AS ten_vi_tri,
-  d.contract_type_code::VARCHAR(50)                   AS ma_loai_hop_dong,
-  d.contract_type_name::VARCHAR(255)                  AS ten_loai_hop_dong,
-  d.job_description::TEXT                             AS mo_ta_cong_viec,
-  d.start_date::DATE                                  AS ngay_bat_dau,
-  d.end_date::DATE                                    AS ngay_ket_thuc,
-  COALESCE(d.is_current, FALSE)::BOOLEAN              AS la_cong_tac_hien_tai,
-  d.status::VARCHAR(50)                               AS trang_thai,
-  d.nguon::VARCHAR(20)                                AS nguon,
-  d.updated_at::DATE                                  AS ngay_cap_nhat
-FROM deduped d
-WHERE d.rn = 1
+  s.work_history_id::VARCHAR(64)                      AS ma_lich_su_cong_tac,
+  s.social_worker_id::VARCHAR(64)                     AS ma_nhan_vien_ctxh,
+  s.facility_code::VARCHAR(30)                        AS ma_co_so,
+  s.facility_name::VARCHAR(255)                       AS ten_co_so,
+  s.facility_type::VARCHAR(50)                        AS loai_co_so,
+  s.position_code::VARCHAR(50)                        AS ma_vi_tri,
+  s.position_name::VARCHAR(255)                       AS ten_vi_tri,
+  s.contract_type_code::VARCHAR(50)                   AS ma_loai_hop_dong,
+  s.contract_type_name::VARCHAR(255)                  AS ten_loai_hop_dong,
+  s.job_description::TEXT                             AS mo_ta_cong_viec,
+  s.start_date::DATE                                  AS ngay_bat_dau,
+  s.end_date::DATE                                    AS ngay_ket_thuc,
+  COALESCE(s.is_current, FALSE)::BOOLEAN              AS la_cong_tac_hien_tai,
+  s.status::VARCHAR(50)                               AS trang_thai,
+  'WORK_HISTORIES'::VARCHAR(20)                       AS nguon,
+  s.updated_at::DATE                                  AS ngay_cap_nhat
+FROM {stg_work_histories} s
+WHERE s.work_history_id IS NOT NULL
+  AND s.social_worker_id IS NOT NULL
 """
 
 
@@ -122,8 +64,7 @@ WHERE d.rn = 1
     tags=["fact", "btxh", "social_worker_work_history"],
     columns=MODEL_COLUMNS,
     description=(
-        "BTXH social worker work history fact - merged from WorkHistories and "
-        "SocialWorkers.workHistories[] streams."
+      "BTXH social worker work history fact from WorkHistories first-level stream."
     ),
 )
 def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
@@ -131,9 +72,6 @@ def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
     df = context.fetchdf(
       QUERY.format(
         stg_work_histories=context.resolve_table("sqlmesh_work.btxh_stg_work_histories"),
-        stg_social_worker_work_histories=context.resolve_table(
-          "sqlmesh_work.btxh_stg_social_worker_work_histories"
-        ),
       )
     )
     if df.empty:

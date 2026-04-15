@@ -1,4 +1,4 @@
-"""Explode Beneficiaries.centerProfiles into sqlmesh_work.btxh_stg_center_profiles."""
+"""Explode SocialWorkers.educationHistories into sqlmesh_work.btxh_stg_sw_edu_hist."""
 from __future__ import annotations
 
 import os
@@ -11,7 +11,7 @@ from psycopg2 import sql
 from sqlmesh import ExecutionContext, model
 from sqlmesh.core.model.kind import ModelKindName
 
-from .btxh_helper import explode_beneficiary_center_profiles
+from .btxh_helper import explode_social_worker_education_histories
 from .._helpers.db import get_connection
 from .._helpers.env import load_dotenv_if_present
 
@@ -20,43 +20,19 @@ MODEL_COLUMNS = {
     "_airbyte_raw_id": "text",
     "_airbyte_extracted_at": "timestamptz",
     "_airbyte_generation_id": "bigint",
-    "beneficiary_id": "text",
+    "social_worker_id": "text",
     "updated_at": "timestamp",
-    "center_profile_id": "text",
-    "profile_active": "boolean",
-    "profile_deleted": "boolean",
-    "ma_trang_thai_ho_so": "text",
-    "ma_co_so": "text",
-    "ten_co_so": "text",
-    "facility_id": "text",
-    "loai_luu_tru": "text",
-    "ngay_tiep_nhan": "date",
-    "ngay_quyet_dinh_tiep_nhan": "date",
-    "so_quyet_dinh_tiep_nhan": "text",
-    "co_so_ban_hanh_quyet_dinh": "text",
-    "so_quyet_dinh": "text",
-    "ma_nhom_doi_tuong_chinh": "text",
-    "ma_nhom_doi_tuong": "text",
-    "ma_chi_tiet_doi_tuong": "text",
-    "ma_dich_vu": "text",
-    "ten_dich_vu": "text",
-    "so_phong": "text",
+    "education_history_id": "text",
+    "education_level_code": "text",
+    "education_level_name": "text",
+    "major_code": "text",
+    "major_name": "text",
+    "graduation_year": "text",
+    "institution_name": "text",
 }
 
-TIMESTAMP_COLUMNS = (
-    "_airbyte_extracted_at",
-    "updated_at",
-)
-
-DATE_COLUMNS = (
-    "ngay_tiep_nhan",
-    "ngay_quyet_dinh_tiep_nhan",
-)
-
-INTEGER_COLUMNS = (
-    "_airbyte_generation_id",
-)
-
+TIMESTAMP_COLUMNS = ("_airbyte_extracted_at", "updated_at")
+INTEGER_COLUMNS = ("_airbyte_generation_id",)
 FETCH_BATCH_SIZE = 5_000
 
 
@@ -66,10 +42,6 @@ def _normalize_dataframe(records: list[dict[str, t.Any]]) -> pd.DataFrame:
 
     for col in TIMESTAMP_COLUMNS:
         df[col] = pd.to_datetime(df[col], errors="coerce")
-
-    for col in DATE_COLUMNS:
-        df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
-
     for col in INTEGER_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
@@ -77,20 +49,17 @@ def _normalize_dataframe(records: list[dict[str, t.Any]]) -> pd.DataFrame:
 
 
 @model(
-    "sqlmesh_work.btxh_stg_center_profiles",
+    "sqlmesh_work.btxh_stg_sw_edu_hist",
     description=(
-        "Exploded BTXH center-profile records from public.\"Beneficiaries\" "
-        "with one row per beneficiary center profile."
+        "Exploded BTXH social worker education histories from public.\"SocialWorkers\" "
+        "with one row per education history item."
     ),
-    kind=dict(
-        name=ModelKindName.INCREMENTAL_BY_TIME_RANGE,
-        time_column="updated_at",
-        batch_size=90,
-    ),
+    physical_schema_override="sw",
+    kind=dict(name=ModelKindName.INCREMENTAL_BY_TIME_RANGE, time_column="updated_at", batch_size=90),
     start="2020-01-01",
     cron="@daily",
     owner="data_team",
-    grain=["center_profile_id"],
+    grain=["education_history_id"],
     columns=MODEL_COLUMNS,
 )
 def execute(
@@ -106,7 +75,7 @@ def execute(
     conn = get_connection()
     try:
         schema_name = os.environ.get("STAGING_DB_SCHEMA", "public")
-        table_name = os.environ.get("STAGING_BTXH_SOURCE_TABLE", "Beneficiaries")
+        table_name = os.environ.get("STAGING_BTXH_SOCIAL_WORKER_SOURCE_TABLE", "SocialWorkers")
         query = sql.SQL(
             """
             SELECT
@@ -114,22 +83,22 @@ def execute(
                 _airbyte_extracted_at,
                 _airbyte_generation_id,
                 id,
-                \"updatedAtmm\",
-                \"centerProfile\"
+                "updatedAt",
+                "updatedAtmm",
+                "educationHistories"
             FROM {schema}.{table}
             WHERE COALESCE(
-                TO_TIMESTAMP(NULLIF(\"updatedAtmm\", ''), 'YYYYMMDDHH24MISS'),
+                TO_TIMESTAMP("updatedAt" / 1000.0),
+                TO_TIMESTAMP(NULLIF("updatedAtmm", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
             ) >= %(start)s
               AND COALESCE(
-                TO_TIMESTAMP(NULLIF(\"updatedAtmm\", ''), 'YYYYMMDDHH24MISS'),
+                TO_TIMESTAMP("updatedAt" / 1000.0),
+                TO_TIMESTAMP(NULLIF("updatedAtmm", ''), 'YYYYMMDDHH24MISS'),
                 _airbyte_extracted_at
               ) < %(end)s
             """
-        ).format(
-            schema=sql.Identifier(schema_name),
-            table=sql.Identifier(table_name),
-        )
+        ).format(schema=sql.Identifier(schema_name), table=sql.Identifier(table_name))
 
         with conn.cursor() as cur:
             cur.execute(query, {"start": start, "end": end})
@@ -140,7 +109,7 @@ def execute(
 
                 records: list[dict[str, t.Any]] = []
                 for row in rows:
-                    records.extend(explode_beneficiary_center_profiles(dict(row)))
+                    records.extend(explode_social_worker_education_histories(dict(row)))
 
                 if records:
                     yield _normalize_dataframe(records)

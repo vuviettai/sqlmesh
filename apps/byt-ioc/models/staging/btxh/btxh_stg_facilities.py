@@ -167,7 +167,6 @@ def execute(
                 "serviceTargetCodes",
                 "totalBeneficiaries",
                 "directorDocumentType",
-                "managementUnitTypeId",
                 "avgAreaPerBeneficiary",
                 "establishmentDecision",
                 "directorIdentityNumber",

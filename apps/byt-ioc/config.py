@@ -59,6 +59,7 @@ config = Config(
         ),
     },
     default_gateway="ioc",
+    physical_schema_mapping={"^sqlmesh_work$": "sw"},
 
     model_defaults=ModelDefaultsConfig(dialect="postgres"),
 )

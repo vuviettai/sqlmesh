@@ -91,9 +91,14 @@ WHERE d.rn = 1
 )
 def execute(context: ExecutionContext, **kwargs) -> t.Iterator[pd.DataFrame]:
     del kwargs
+    try:
+        stg_beneficiaries = context.resolve_table("sqlmesh_work.btxh_stg_beneficiaries")
+    except KeyError:
+        stg_beneficiaries = '"sqlmesh_work"."btxh_stg_beneficiaries"'
+
     df = context.fetchdf(
         QUERY.format(
-            stg_beneficiaries=context.resolve_table("sqlmesh_work.btxh_stg_beneficiaries")
+            stg_beneficiaries=stg_beneficiaries
         )
     )
     if df.empty:

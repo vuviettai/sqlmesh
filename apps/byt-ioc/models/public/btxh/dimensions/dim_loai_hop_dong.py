@@ -18,12 +18,6 @@ MODEL_COLUMNS = {
 QUERY = """
 WITH all_contract_types AS (
   SELECT contract_type_code AS ma_loai_hop_dong, contract_type_name AS ten_loai_hop_dong, updated_at
-  FROM {stg_social_worker_work_histories}
-  WHERE NULLIF(contract_type_code, '') IS NOT NULL
-
-  UNION ALL
-
-  SELECT contract_type_code AS ma_loai_hop_dong, contract_type_name AS ten_loai_hop_dong, updated_at
   FROM {stg_work_histories}
   WHERE NULLIF(contract_type_code, '') IS NOT NULL
 ),
@@ -59,17 +53,13 @@ WHERE d.rn = 1
     tags=["dimension", "btxh", "reference"],
     columns=MODEL_COLUMNS,
     description=(
-        "BTXH contract type dimension - distinct contract type codes observed "
-        "in social worker work histories."
+      "BTXH contract type dimension - distinct contract type codes from WorkHistories."
     ),
 )
 def execute(context: ExecutionContext, **kwargs: t.Any) -> t.Iterator[pd.DataFrame]:
     del kwargs
     df = context.fetchdf(
         QUERY.format(
-            stg_social_worker_work_histories=context.resolve_table(
-                "sqlmesh_work.btxh_stg_social_worker_work_histories"
-            ),
             stg_work_histories=context.resolve_table("sqlmesh_work.btxh_stg_work_histories"),
         )
     )
