@@ -8,6 +8,10 @@ def migrate_schemas(engine_adapter, schema, **kwargs):  # type: ignore
     if schema:
         environments_table = f"{schema}.{environments_table}"
 
+    environment_columns = engine_adapter.columns(environments_table)
+    if "gateway_managed" in environment_columns:
+        return
+
     alter_table_exp = exp.Alter(
         this=exp.to_table(environments_table),
         kind="TABLE",

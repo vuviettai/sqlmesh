@@ -2140,7 +2140,7 @@ class MaterializableStrategy(PromotableStrategy, abc.ABC):
             name: The name of the target table.
             query_or_df: The query or DataFrame to replace the target table with.
         """
-        if (model.is_seed or model.kind.is_full) and model.annotated:
+        if (model.is_seed or model.kind.is_full or model.is_python) and model.annotated:
             columns_to_types = model.columns_to_types_or_raise
             source_columns: t.Optional[t.List[str]] = list(columns_to_types)
         else:

@@ -13,6 +13,10 @@ def migrate_schemas(engine_adapter, schema, **kwargs):  # type: ignore
     if schema:
         intervals_table = f"{schema}.{intervals_table}"
 
+    interval_columns = engine_adapter.columns(intervals_table)
+    if "dev_version" in interval_columns:
+        return
+
     index_type = index_text_type(engine_adapter.dialect)
     alter_table_exp = exp.Alter(
         this=exp.to_table(intervals_table),

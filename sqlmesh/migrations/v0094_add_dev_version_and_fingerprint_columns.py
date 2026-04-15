@@ -12,32 +12,36 @@ def migrate_schemas(engine_adapter, schema, **kwargs):  # type: ignore
     if schema:
         snapshots_table = f"{schema}.{snapshots_table}"
 
+    snapshot_columns = engine_adapter.columns(snapshots_table)
+
     index_type = index_text_type(engine_adapter.dialect)
     blob_type = blob_text_type(engine_adapter.dialect)
 
-    add_dev_version_exp = exp.Alter(
-        this=exp.to_table(snapshots_table),
-        kind="TABLE",
-        actions=[
-            exp.ColumnDef(
-                this=exp.to_column("dev_version"),
-                kind=exp.DataType.build(index_type),
-            )
-        ],
-    )
-    engine_adapter.execute(add_dev_version_exp)
+    if "dev_version" not in snapshot_columns:
+        add_dev_version_exp = exp.Alter(
+            this=exp.to_table(snapshots_table),
+            kind="TABLE",
+            actions=[
+                exp.ColumnDef(
+                    this=exp.to_column("dev_version"),
+                    kind=exp.DataType.build(index_type),
+                )
+            ],
+        )
+        engine_adapter.execute(add_dev_version_exp)
 
-    add_fingerprint_exp = exp.Alter(
-        this=exp.to_table(snapshots_table),
-        kind="TABLE",
-        actions=[
-            exp.ColumnDef(
-                this=exp.to_column("fingerprint"),
-                kind=exp.DataType.build(blob_type),
-            )
-        ],
-    )
-    engine_adapter.execute(add_fingerprint_exp)
+    if "fingerprint" not in snapshot_columns:
+        add_fingerprint_exp = exp.Alter(
+            this=exp.to_table(snapshots_table),
+            kind="TABLE",
+            actions=[
+                exp.ColumnDef(
+                    this=exp.to_column("fingerprint"),
+                    kind=exp.DataType.build(blob_type),
+                )
+            ],
+        )
+        engine_adapter.execute(add_fingerprint_exp)
 
 
 def migrate_rows(engine_adapter, schema, **kwargs):  # type: ignore

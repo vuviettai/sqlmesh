@@ -12,6 +12,10 @@ def migrate_schemas(engine_adapter, schema, **kwargs):  # type: ignore
     if schema:
         snapshots_table = f"{schema}.{snapshots_table}"
 
+    snapshot_columns = engine_adapter.columns(snapshots_table)
+    if "forward_only" in snapshot_columns:
+        return
+
     alter_table_exp = exp.Alter(
         this=exp.to_table(snapshots_table),
         kind="TABLE",
